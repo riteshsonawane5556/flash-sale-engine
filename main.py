@@ -27,7 +27,7 @@ async def lifespan(app: FastAPI):
     logger.info("redis keyspace notifications configured")
 
     pubsub_client = await get_pubsub_client()
-    _expiry_task = asyncio.create_task(listen_for_expirations(pubsub_client))
+    _expiry_task = asyncio.create_task(listen_for_expirations(pubsub_client, redis_client))
     logger.info("expiry listener started")
 
     yield

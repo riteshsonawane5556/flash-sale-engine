@@ -11,7 +11,7 @@ logger = get_logger(__name__)
 KEYSPACE_CHANNEL = f"__keyevent@{settings.redis_db}__:expired"
 
 
-async def listen_for_expirations(pubsub_client: aioredis.Redis) -> None:
+async def listen_for_expirations(pubsub_client: aioredis.Redis, redis_client: aioredis.Redis) -> None:
     from src.services.inventory_service import InventoryService
 
     pubsub = pubsub_client.pubsub()
@@ -19,7 +19,12 @@ async def listen_for_expirations(pubsub_client: aioredis.Redis) -> None:
     logger.info("expiry_service listening on %s", KEYSPACE_CHANNEL)
 
     try:
-        async for message in pubsub.listen():
+        while True:
+            message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+            if message is None:
+                await asyncio.sleep(0.1)
+                continue
+
             if message["type"] != "message":
                 continue
 
@@ -32,7 +37,7 @@ async def listen_for_expirations(pubsub_client: aioredis.Redis) -> None:
             logger.info("reservation_expired product=%s user=%s", product_id, user_id)
 
             try:
-                inventory_svc = InventoryService(pubsub_client)
+                inventory_svc = InventoryService(redis_client)
                 promoted_user = await inventory_svc.restock_and_promote(product_id, user_id)
                 if promoted_user:
                     logger.info("waitlist_promotion product=%s promoted_user=%s", product_id, promoted_user)
