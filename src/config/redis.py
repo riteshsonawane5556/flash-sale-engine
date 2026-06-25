@@ -7,7 +7,11 @@ _client: aioredis.Redis | None = None
 async def get_redis() -> aioredis.Redis:
     global _client
     if _client is None:
-        _client = aioredis.from_url(settings.redis_url, decode_responses=True)
+        _client = aioredis.from_url(
+            settings.redis_url,
+            decode_responses=True,
+            max_connections=100,
+        )
     return _client
 
 

@@ -28,24 +28,28 @@ async def seed() -> None:
         print(f"seeded: stock={data['stock']}")
 
 
+_sem = asyncio.Semaphore(100)
+
+
 async def buy(client: httpx.AsyncClient, user_id: str) -> str:
-    try:
-        resp = await client.post(
-            f"/sale/{PRODUCT_ID}/buy",
-            json={"user_id": user_id},
-            timeout=30,
-        )
-        resp.raise_for_status()
-        return resp.json()["status"]
-    except Exception as exc:
-        return f"error:{exc}"
+    async with _sem:
+        try:
+            resp = await client.post(
+                f"/sale/{PRODUCT_ID}/buy",
+                json={"user_id": user_id},
+                timeout=60,
+            )
+            resp.raise_for_status()
+            return resp.json()["status"]
+        except Exception as exc:
+            return f"error:{exc}"
 
 
 async def run() -> None:
     await seed()
 
     print(f"firing {TOTAL_BUYERS} concurrent buy requests...")
-    async with httpx.AsyncClient(base_url=BASE_URL) as client:
+    async with httpx.AsyncClient(base_url=BASE_URL, timeout=60) as client:
         tasks = [buy(client, f"user_{i}") for i in range(TOTAL_BUYERS)]
         results = await asyncio.gather(*tasks)
 

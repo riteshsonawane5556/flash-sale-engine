@@ -83,15 +83,23 @@ class SaleController:
         current = await self._inventory.get_stock(product_id)
         yield f"data: {json.dumps({'stock': current})}\n\n"
 
-        pubsub_client = aioredis.from_url(settings.redis_url, decode_responses=True)
+        pubsub_client = aioredis.from_url(
+            settings.redis_url,
+            decode_responses=True,
+            socket_timeout=None,
+            socket_connect_timeout=5,
+        )
         pubsub = pubsub_client.pubsub()
         await pubsub.subscribe(stock_channel(product_id))
         try:
-            async for message in pubsub.listen():
-                if message["type"] == "message":
+            while True:
+                message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=30)
+                if message is not None and message["type"] == "message":
                     stock_val = message["data"]
                     yield f"data: {json.dumps({'stock': int(stock_val)})}\n\n"
-        except asyncio.CancelledError:
+                else:
+                    yield ": keepalive\n\n"
+        except (asyncio.CancelledError, GeneratorExit):
             pass
         finally:
             await pubsub.unsubscribe(stock_channel(product_id))

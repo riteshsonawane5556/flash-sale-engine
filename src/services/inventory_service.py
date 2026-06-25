@@ -2,6 +2,7 @@ import redis.asyncio as aioredis
 
 from src.config.settings import settings
 from src.utils.helpers import (
+    BUY_LUA,
     DistributedLock,
     reservation_key,
     stock_channel,
@@ -28,7 +29,7 @@ class InventoryService:
 
     async def buy(self, product_id: str, user_id: str) -> tuple[bool, int]:
         sk = stock_key(product_id)
-        new_stock = await self._r.decr(sk)
+        new_stock = await self._r.eval(BUY_LUA, 1, sk)
 
         if new_stock >= 0:
             res_key = reservation_key(product_id, user_id)
@@ -37,7 +38,6 @@ class InventoryService:
             logger.info("reserved product=%s user=%s stock_remaining=%d", product_id, user_id, new_stock)
             return True, new_stock
         else:
-            await self._r.incr(sk)
             current = await self.get_stock(product_id)
             logger.info("out_of_stock product=%s user=%s", product_id, user_id)
             return False, current

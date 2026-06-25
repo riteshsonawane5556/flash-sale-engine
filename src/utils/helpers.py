@@ -17,6 +17,15 @@ else
 end
 """
 
+# Atomically decrement stock only if > 0. Returns new stock value or -1 if out of stock.
+BUY_LUA = """
+local stock = tonumber(redis.call("get", KEYS[1]))
+if stock == nil or stock <= 0 then
+    return -1
+end
+return redis.call("decr", KEYS[1])
+"""
+
 
 def stock_key(product_id: str) -> str:
     return f"sale:{product_id}:stock"
